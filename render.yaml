@@ -1,0 +1,25 @@
+# Render blueprint — deploy Mantis as a persistent Node web service.
+# Everything (runtime product-add, PDF/video upload, ffmpeg, MOSS, Groq) works
+# exactly like local because this is a real container, not serverless.
+services:
+  - type: web
+    name: mantis
+    runtime: node
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      # Set these (secret) in the Render dashboard:
+      - key: GROQ_API_KEY
+        sync: false
+      - key: MOSS_PROJECT_ID
+        sync: false
+      - key: MOSS_PROJECT_KEY
+        sync: false
+      - key: HF_TRANSCRIBE_URL
+        sync: false
+      # Non-secret defaults:
+      - key: MANTIS_MODEL
+        value: llama-3.3-70b-versatile
+      - key: MANTIS_VISION_MODEL
+        value: meta-llama/llama-4-scout-17b-16e-instruct

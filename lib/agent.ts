@@ -1,4 +1,5 @@
 import type { Product } from "./data";
+import type { Passage } from "./retrieval";
 
 // Single place that talks to the model. We use Groq's OpenAI-compatible
 // chat-completions API with forced function-calling so the model always
@@ -6,6 +7,8 @@ import type { Product } from "./data";
 // any other OpenAI-compatible provider (incl. MOSS) without touching the app.
 const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
 const MODEL = process.env.MANTIS_MODEL || "llama-3.3-70b-versatile";
+const VISION_MODEL =
+  process.env.MANTIS_VISION_MODEL || "meta-llama/llama-4-scout-17b-16e-instruct";
 
 export type Cause = {
   cause: string;
@@ -38,6 +41,12 @@ RULES:
 - When you diagnose, give the probable root cause AND a concrete, safe fix with
   exact references (fuse numbers, figures, sections) from the manual.
 - Every factual claim must be backed by a citation quoting the manual.
+- In each citation's "location", copy the label shown in parentheses before the
+  passage VERBATIM (including any "watch M:SS-M:SS" timestamp for videos). Never
+  invent a section number.
+- When a cited passage is a video (its label starts with "Video:" and has a
+  "watch M:SS-M:SS" timestamp), explicitly tell the user which video and
+  timestamp to watch.
 - Use plain ASCII characters only. Use a hyphen (-) instead of em/en dashes, and
   straight quotes instead of smart quotes.
 - Always call the report_diagnosis function. Never reply in plain text.`;
@@ -111,10 +120,69 @@ function fixText(s: string): string {
     .replace(/â€/g, "-"); // any leftover
 }
 
+// Image-based troubleshooting: describe an uploaded photo (error light, broken
+// part, warning indicator) using a Groq vision model, so its description can be
+// fed into the diagnostic loop. Returns "" on failure (feature degrades safely).
+export async function analyzeImage(
+  imageDataUrl: string,
+  productName: string
+): Promise<string> {
+  try {
+    const res = await fetch(GROQ_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: VISION_MODEL,
+        temperature: 0.2,
+        max_tokens: 400,
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "text",
+                text: `This is a photo related to a ${productName}. Describe precisely what you see that is relevant to diagnosing a fault: any warning lights and their colour/state, error codes/text on a display, visible damage, broken or worn parts, leaks, or burn marks. Be specific and factual; do not speculate about causes.`,
+              },
+              { type: "image_url", image_url: { url: imageDataUrl } },
+            ],
+          },
+        ],
+      }),
+    });
+    if (!res.ok) return "";
+    const data = await res.json();
+    return data?.choices?.[0]?.message?.content?.trim() || "";
+  } catch {
+    return "";
+  }
+}
+
 export async function diagnose(
   product: Product,
-  history: ChatTurn[]
+  history: ChatTurn[],
+  passages?: Passage[] | null,
+  language?: string
 ): Promise<DiagnosticResult> {
+  // When MOSS returns relevant passages, diagnose from those (precise + scales
+  // to large manuals). Otherwise fall back to the full manual text.
+  const knowledge =
+    passages && passages.length
+      ? passages
+          .map(
+            (p, i) =>
+              `[${i + 1}] (${p.location}) ${p.text}`
+          )
+          .join("\n\n")
+      : product.manual;
+
+  const knowledgeLabel =
+    passages && passages.length
+      ? "RELEVANT MANUAL PASSAGES (retrieved by semantic search)"
+      : "PRODUCT MANUAL";
+
   const body = {
     model: MODEL,
     temperature: 0.3,
@@ -124,10 +192,17 @@ export async function diagnose(
       function: { name: "report_diagnosis" },
     },
     messages: [
-      { role: "system", content: SYSTEM },
+      {
+        role: "system",
+        content:
+          SYSTEM +
+          (language && language !== "Auto"
+            ? `\n- IMPORTANT: Write the "message" field in ${language}. Keep citation quotes in their original language.`
+            : `\n- Write the "message" field in the same language the user is writing in.`),
+      },
       {
         role: "user",
-        content: `PRODUCT: ${product.name} (${product.category})\n\nPRODUCT MANUAL:\n"""\n${product.manual}\n"""\n\nUse the manual above as your only source of truth for the conversation that follows.`,
+        content: `PRODUCT: ${product.name} (${product.category})\n\n${knowledgeLabel}:\n"""\n${knowledge}\n"""\n\nUse the text above as your only source of truth for the conversation that follows.`,
       },
       {
         role: "assistant",

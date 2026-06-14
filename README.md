@@ -12,230 +12,168 @@
 ```
 
 ### **Assistant for Your Products**
-*24-Hour Hackathon*
+
+An intelligent diagnostic assistant that troubleshoots products like a
+technician — by investigation and elimination — using each product's own
+documentation, with every answer traceable to the source.
+
+[![Next.js](https://img.shields.io/badge/Next.js-14-black?style=for-the-badge)]()
+[![MOSS](https://img.shields.io/badge/Retrieval-MOSS-7B2FBE?style=for-the-badge)]()
+[![Groq](https://img.shields.io/badge/LLM-Groq-00C896?style=for-the-badge)]()
 
 <br/>
-
-[![Build in 24hrs](https://img.shields.io/badge/Build%20In-24%20Hours-7B2FBE?style=for-the-badge&logoColor=white)]()
-[![Status](https://img.shields.io/badge/Status-Active-00C896?style=for-the-badge)]()
-
-<br/>
-
----
 
 </div>
 
-## Background
+---
 
-People use all kinds of products every day, including scooters, air conditioners, washing machines, water purifiers, consumer electronics, and industrial equipment. When something goes wrong or requires maintenance, finding the right answer is surprisingly difficult.
+## What it is
 
-Manuals are lengthy and difficult to navigate. Information is scattered across PDFs, websites, videos, and support portals. Most users give up and call a technician for issues they could have resolved themselves if they knew where to find the right information.
+Manuals are long, scattered across PDFs, sites and videos, and nobody reads
+them — so people call a technician for things they could fix themselves.
 
-> **The information already exists. The problem is access.**
+**Mantis** is a platform where companies list products and attach their support
+material, and every product gets a dedicated **diagnostic assistant**. The
+assistant does **not** dump manual text at you like a search box. It behaves
+like a mechanic: it asks the single most useful question, rules causes in and
+out, and arrives at a probable diagnosis with a concrete fix — every claim
+**cited back to the official documentation**.
 
 ---
 
-## The Challenge
+## Key features
 
-Build a platform where companies can list their products and users can quickly find answers to product-related questions and issues.
-
-Think of it as a support portal where every product has an intelligent assistant built using the product's official documentation and support materials. However, this assistant should not behave like a simple chatbot or search engine. The assistant should function like a **mechanic, technician, or support engineer** who diagnoses issues through investigation and elimination rather than simply returning search results from documentation. The goal is to help users understand, maintain, troubleshoot, and resolve issues with their products using trusted manufacturer-provided information.
-
----
-
-## Who Uses It
-
-<table>
-<tr>
-<td width="50%" valign="top">
-
-### Companies
-
-Any company that manufactures or sells a product should be able to:
-
-- Register and create a company account
-- Add products with names, categories, descriptions, and images
-- Upload support materials for each product:
-  - PDF manuals
-  - Text documents
-  - Images / videos
-  - External links (web pages, documentation sites, and YouTube videos)
-- Update or remove their content at any time
-
-</td>
-<td width="50%" valign="top">
-
-### Users
-
-Anyone who owns or is considering a product should be able to:
-
-- Browse and search for products on the platform
-- View product details and available documentation
-- Report issues and ask questions
-- Receive guidance from the product assistant
-
-</td>
-</tr>
-</table>
+| | Feature | Notes |
+|---|---|---|
+| 🔧 | **Diagnostic assistant** | Hypothesis-driven loop: ask → eliminate → diagnose. Structured output with ranked candidate causes and confidence. |
+| 🔎 | **MOSS-powered retrieval** | Each product's materials are chunked and indexed in **MOSS** (semantic vector search, sub-10ms). The assistant retrieves the relevant passages, then reasons over them. |
+| 📚 | **Knowledge repository** | Companies upload **manual text, PDFs, external links, and videos**. All are indexed for the assistant and browsable/downloadable by users. |
+| 🎬 | **Video support** | Videos (upload or YouTube/URL) are transcribed **once** via a Whisper HF Space; the assistant cites the exact timestamp to watch (e.g. *"watch 2:10–2:40"*). |
+| 📷 | **Image troubleshooting** | Upload a photo of an error light / damaged part — a vision model describes it and folds it into the diagnosis. |
+| 🎤 | **Voice** | Hands-free: speak your problem (Web Speech API) and have replies read aloud. |
+| 🌍 | **Multi-language** | Ask and get answers in multiple languages. |
+| 🛒 | **Marketplace** | Browse, **search**, and add products (manual / PDF / links in one form). |
 
 ---
 
-## What You Must Build
-
-### `1` — Product Marketplace
-
-A browsable catalog of products on the platform.
-
-| Feature | Description |
-|---|---|
-| Product Listings | Companies can create product listings |
-| Browse & Search | Users can browse and search all products |
-| Product Pages | Each product has its own page showing full details and uploaded resources |
-
----
-
-### `2` — Knowledge Repository
-
-Each product has a set of support materials attached to it.
-
-- Companies can upload **PDFs, documents, images, videos, and external links**
-- All uploaded materials are associated with a specific product
-- Users can browse and download these materials from the product page
-- The assistant uses these materials to investigate issues and provide recommendations
-
----
-
-### `3` — Intelligent Diagnostic Assistant
-
-Each product should include a dedicated assistant capable of helping users identify and resolve issues through guided investigation.
-
-The assistant should not simply retrieve information from manuals and display it. Instead, it should behave like an experienced technician who **systematically diagnoses problems** using available product knowledge.
-
-#### Diagnostic Workflow
-
-When a user reports a problem, the assistant should:
+## Architecture
 
 ```
- 1  Understand the reported symptoms and context
- 2  Identify possible causes from available documentation
- 3  Ask follow-up questions to eliminate unlikely causes
- 4  Suggest safe inspection steps or tests
- 5  Evaluate user responses
- 6  Narrow down the most probable root causes
- 7  Recommend corrective actions
- 8  Provide supporting references from official documentation and resources
+                       ┌─────────────────────────────────────────┐
+   Company adds        │            INGESTION (once)              │
+   materials  ───────► │  manual text ─┐                          │
+                       │  PDF  ─► text ─┤► chunk ─► MOSS index     │
+                       │  link ─► text ─┤        (per product)     │
+                       │  video ─► audio ─► Whisper(HF) ─► chunks  │
+                       └─────────────────────────────────────────┘
+                                          │
+   User asks a                            ▼
+   question  ───────►  MOSS.query(symptoms)  ─►  top passages
+                                          │
+                                          ▼
+                          Groq LLM (technician prompt, tool-calling)
+                                          │
+                                          ▼
+                  question / diagnosis + ranked causes + citations
 ```
 
-> The objective is to help users arrive at a likely diagnosis rather than simply presenting search results. Recommendations should be traceable to source materials whenever possible so users can verify the information.
+- **MOSS** is the vector database / retrieval layer — it stores chunks, embeds
+  them, and serves semantic search. No separate vector DB is needed.
+- **Groq** (Llama 3.3 70B) does the diagnostic reasoning with forced
+  function-calling, so every turn returns structured `{action, message, causes,
+  citations}`.
+- If MOSS is unavailable, the assistant gracefully falls back to feeding the
+  full manual to the LLM.
 
-#### Example — Scooter Horn Failure
+---
+
+## Tech stack
+
+- **Next.js 14** (App Router, TypeScript) — UI + API routes
+- **MOSS** (`@moss-dev/moss`) — semantic retrieval / vector store
+- **Groq** — LLM (`llama-3.3-70b-versatile`) + vision (`llama-4-scout`)
+- **Hugging Face Space** (FastAPI + faster-whisper) — video transcription
+- **ffmpeg-static** + **ytdl-core** — audio extraction; **pdf-parse** — PDF text
+- Storage: JSON catalog + local file uploads (swap for a DB/Blob in production)
+
+---
+
+## Setup
+
+```bash
+npm install
+cp .env.example .env.local   # then fill in the keys
+npm run dev                  # http://localhost:3000
+```
+
+### Environment variables (`.env.local`)
+
+```bash
+GROQ_API_KEY=gsk_...                 # https://console.groq.com/keys
+MANTIS_MODEL=llama-3.3-70b-versatile
+MANTIS_VISION_MODEL=meta-llama/llama-4-scout-17b-16e-instruct
+
+MOSS_PROJECT_ID=...                  # https://moss.dev (free tier)
+MOSS_PROJECT_KEY=moss_...
+
+# Video transcription (optional — PDF/text/links work without it)
+HF_TRANSCRIBE_URL=https://<user>-<space>.hf.space/transcribe
+HF_TOKEN=hf_...                      # only if the Space is private
+```
+
+> Without MOSS keys the app still runs (falls back to full-manual context).
+> Without `HF_TRANSCRIBE_URL` everything works except video.
+
+### Whisper transcription Space
+
+A ready-to-deploy Hugging Face Space lives in [`whisper-space/`](./whisper-space)
+(FastAPI + faster-whisper, Docker SDK). Deploy it, then set `HF_TRANSCRIBE_URL`.
+Contract:
 
 ```
-User: "My scooter horn is not working."
+POST /transcribe   multipart field "audio" (mp3)
+->  { "text": "...", "segments": [ { "start", "end", "text" } ] }
 ```
 
-Instead of immediately providing possible causes, the assistant may ask:
+---
+
+## Deployment
+
+Deploy to **Render** (or Railway) — a persistent container so runtime
+product-adding, uploads, and ffmpeg all work as they do locally. A
+[`render.yaml`](./render.yaml) blueprint is included; set the secret env vars in
+the dashboard. (Vercel works for the read/diagnose core, but its serverless
+filesystem breaks runtime uploads/adds without swapping to KV + Blob storage.)
+
+---
+
+## Project structure
 
 ```
-◆  Does the headlight work normally?
-◆  Is the horn completely silent or weak?
-◆  Did the issue start suddenly or gradually?
-◆  Has any electrical work been performed recently?
+app/
+  page.tsx                 catalog + search
+  add/page.tsx             add product (manual / PDF / links)
+  products/[id]/           product page + chat + materials
+  api/
+    chat/                  diagnostic agent endpoint
+    products/              create product
+    products/[id]/pdf      PDF upload  -> MOSS
+    products/[id]/link     link ingest -> MOSS
+    products/[id]/video    video -> audio -> Whisper -> MOSS
+lib/
+  agent.ts                 Groq diagnostic loop + vision
+  retrieval.ts             MOSS indexing + retrieval + chunking
+  media.ts                 ffmpeg audio extraction
+  transcribe.ts            HF Whisper adapter
+  data.ts                  catalog store
+whisper-space/             deployable HF Whisper Space
 ```
-
-Based on the responses, the assistant may suggest:
-
-```
-"Please check whether Fuse F3 (10A) is intact. It is located beneath
- the front panel as shown in Figure 4.2 of the service manual."
-```
-
-After receiving additional information, the assistant should continue narrowing down possible causes until a probable diagnosis is reached.
-
----
-
-## Bonus Features
-
-> Teams are not expected to build all of them. **Focus on building a smaller number of features well rather than implementing many incomplete features.**
-
-<table>
-<tr>
-<td width="50%" valign="top">
-
-**Maintenance Schedules & Product Ownership**
-Users can maintain a list of products they own. Users can add products they own to a personal inventory and receive maintenance reminders based on schedules defined by the company. The platform should track upcoming and overdue maintenance tasks, allow users to mark tasks as completed.
-
----
-
-**Auto-extract Maintenance Schedules**
-When a company uploads manuals or service documentation, automatically identify maintenance schedules and tasks from the content. Extract: *"Replace filter every 12 months"* from uploaded documentation and suggest it to the company for approval before publishing.
-
----
-
-**Voice Input**
-Allow users to interact with the assistant using voice. The assistant should be capable of guiding users through troubleshooting procedures hands-free, similar to Alexa/Siri. It should provide detailed instructions and clearly describe component locations. *(e.g., A user places their phone nearby while repairing a scooter. The assistant guides them through each troubleshooting step using voice instructions.)*
-
----
-
-**Image-based Troubleshooting**
-Allow users to upload images of error screens, warning indicators, damaged components, or product parts. The assistant can use these images to assist with diagnosis and troubleshooting.
-
----
-
-**Video Support**
-If a company uploads support videos, the assistant can direct users to the most relevant section. *(e.g., "Watch from 3:25 to 4:10 for the filter replacement procedure.")*
-
-</td>
-<td width="50%" valign="top">
-
-**Spare Part Suggestions**
-Based on the identified issue or product model, suggest compatible spare parts, replacement components, consumables, and accessories.
-
----
-
-**Multi-language Support**
-Allow users to ask questions and receive guidance in languages other than English.
-
----
-
-**Warranty and Recall Alerts**
-Notify users about warranty expiry dates, product recalls, safety notices, and service campaigns for products they own.
-
----
-
-**Product Health Score**
-Provide companies with insights into common user issues, frequently reported failures, product shortcomings, and support trends.
-
----
-
-**Visual Guidance**
-Present troubleshooting procedures using images, diagrams, flowcharts, step-by-step visual instructions, interactive tutorials, animations, or 3D visualizations to improve the user experience.
-
-</td>
-</tr>
-</table>
-and many more...
-
----
-
-## What a Great Submission Looks Like
-
-A strong submission will have a clean, working product that a non-technical person can navigate without confusion. Participants should smartly use MOSS in their solution. Participants are encouraged to use AI tools during development. What matters is the quality of the final product and how effectively it solves the problem, not how it was built.
-
-Focus on building features that are **complete, reliable, and genuinely useful**. A smaller set of polished features is preferred over a large number of incomplete ones.
-
-When deciding what to build, ask yourself:
-
-> *"If I owned this product, would I actually use this platform to solve my problem?"*
 
 ---
 
 <div align="center">
 
-<br/>
-
-*BEST OF LUCK* &nbsp;·&nbsp; *PClub X MOSS*
-
-<br/>
+*Built for the PClub × MOSS hackathon.*
 
 </div>
+```

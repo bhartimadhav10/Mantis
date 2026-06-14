@@ -2,6 +2,9 @@ import { notFound } from "next/navigation";
 import { getProduct } from "@/lib/data";
 import Thumb from "@/app/Thumb";
 import Chat from "./Chat";
+import Materials from "./Materials";
+
+export const dynamic = "force-dynamic";
 
 export default function ProductPage({ params }: { params: { id: string } }) {
   const product = getProduct(params.id);
@@ -34,6 +37,8 @@ export default function ProductPage({ params }: { params: { id: string } }) {
           </div>
         </div>
       </section>
+
+      <Materials productId={product.id} initial={product.materials ?? []} />
 
       <h2 className="section-title">🔧 Diagnostic Assistant</h2>
       <Chat productId={product.id} productName={product.name} />

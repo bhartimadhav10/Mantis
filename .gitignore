@@ -1,6 +1,11 @@
 node_modules
 .next
+/data
 .env
 .env.local
 *.log
 .DS_Store
+
+# runtime caches
+.moss-cache
+/public/uploads
