@@ -160,6 +160,16 @@ export async function analyzeImage(
   }
 }
 
+function languageRule(language?: string): string {
+  if (language === "Hinglish") {
+    return `\n- IMPORTANT: Write the "message" field in Hinglish — a natural, casual mix of Hindi and English written in Roman (Latin) script, the way Indians chat (e.g. "Aapka horn kaam nahi kar raha — pehle fuse F3 check karo"). Keep technical terms, part names, and numbers in English. Citation quotes stay as-is.`;
+  }
+  if (language && language !== "Auto") {
+    return `\n- IMPORTANT: Write the "message" field in ${language}. Keep citation quotes in their original language.`;
+  }
+  return `\n- Write the "message" field in the same language the user is writing in.`;
+}
+
 export async function diagnose(
   product: Product,
   history: ChatTurn[],
@@ -194,11 +204,7 @@ export async function diagnose(
     messages: [
       {
         role: "system",
-        content:
-          SYSTEM +
-          (language && language !== "Auto"
-            ? `\n- IMPORTANT: Write the "message" field in ${language}. Keep citation quotes in their original language.`
-            : `\n- Write the "message" field in the same language the user is writing in.`),
+        content: SYSTEM + languageRule(language),
       },
       {
         role: "user",

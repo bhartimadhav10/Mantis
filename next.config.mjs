@@ -10,6 +10,7 @@ const nextConfig = {
       "pdfjs-dist",
       "@distube/ytdl-core",
       "ffmpeg-static",
+      "msedge-tts",
     ],
   },
 };
